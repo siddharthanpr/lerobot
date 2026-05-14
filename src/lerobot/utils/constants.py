@@ -71,8 +71,9 @@ HF_LEROBOT_HOME = Path(os.getenv("HF_LEROBOT_HOME", default_cache_path)).expandu
 # dataset revisions are stored in isolated snapshot directories.
 HF_LEROBOT_HUB_CACHE = HF_LEROBOT_HOME / "hub"
 
-# calibration dir
-default_calibration_path = HF_LEROBOT_HOME / "calibration"
+# calibration dir — prefer repo-local ./calibration if it exists, else fall back to the HF cache
+_repo_calibration_path = Path(__file__).resolve().parents[3] / "calibration"
+default_calibration_path = _repo_calibration_path if _repo_calibration_path.is_dir() else HF_LEROBOT_HOME / "calibration"
 HF_LEROBOT_CALIBRATION = Path(os.getenv("HF_LEROBOT_CALIBRATION", default_calibration_path)).expanduser()
 
 

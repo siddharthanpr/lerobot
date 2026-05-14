@@ -41,6 +41,10 @@ class SOFollowerConfig:
     # Set to `True` for backward compatibility with previous policies/dataset
     use_degrees: bool = True
 
+    # When True, wrist_roll is excluded from the range-of-motion sweep during
+    # calibration and its range is hardcoded to 0-4095 (full turn assumed).
+    exclude_wrist_roll: bool = False
+
 
 @RobotConfig.register_subclass("so101_follower")
 @RobotConfig.register_subclass("so100_follower")
