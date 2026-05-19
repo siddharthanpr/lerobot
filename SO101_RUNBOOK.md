@@ -1,6 +1,8 @@
-# SO-101 runbook
+# SO-101 runbook (default)
 
 Fork: `https://github.com/siddharthanpr/lerobot` · branch `dryrun/teleop`
+
+**MacBook Air / low-power laptop?** → [`SO101_RUNBOOK_MACBOOK_AIR.md`](./SO101_RUNBOOK_MACBOOK_AIR.md) (`fps=20`, `mps`, `batch_size=1`, recording tuning).
 
 | | |
 |--|--|
@@ -11,8 +13,7 @@ Fork: `https://github.com/siddharthanpr/lerobot` · branch `dryrun/teleop`
 | HF user | `siddpr` |
 | Wrist camera | OpenCV index **0** (only camera) |
 | Calibration | `calibration/` in repo |
-| Active dataset (local + Hub) | `siddpr/my_vla_task_20260519_144738` |
-| Dataset root | `~/.cache/huggingface/lerobot/siddpr/my_vla_task_20260519_144738` |
+| Dataset repo id (example) | `siddpr/my_vla_task` |
 
 Every new terminal:
 
@@ -28,7 +29,7 @@ cd /Users/sid/repos/lerobot && source .venv/bin/activate
 uv python install 3.12
 uv venv --python 3.12
 source .venv/bin/activate
-brew install ffmpeg
+brew install ffmpeg   # macOS; use apt on Linux
 uv pip install -e .
 uv pip install -e ".[feetech]"
 ```
@@ -97,36 +98,24 @@ lerobot-teleoperate \
 
 ## 5. Record demos (VLA training data)
 
-**What this does:** You teleop with the leader; LeRobot saves joint data + wrist video + task text. That dataset is used to fine-tune SmolVLA later. The text prompt alone is not enough without these demos.
+**What this does:** Teleop with the leader; LeRobot saves joint data + wrist video + task text for fine-tuning SmolVLA.
 
 **Before recording:**
 
 ```bash
-uv pip install pynput          # keyboard: → next episode, ← redo, ESC stop
-hf auth login                  # once
+uv pip install pynput
+hf auth login
 ```
 
-**macOS — enable keyboard controls:** System Settings → Privacy & Security → **Accessibility** → enable **Terminal** (or Cursor). Quit and reopen the app. Without this, `→` / `ESC` do nothing (only the 30s timer works).
+**macOS keyboard:** System Settings → Privacy & Security → **Accessibility** → enable **Terminal** (or Cursor).
 
 | Key | Action |
 |-----|--------|
-| `→` | End episode early → start reset |
+| `→` | End episode early → reset |
 | `←` | Redo last episode |
-| `ESC` | Finish all recording and upload to Hub |
+| `ESC` | Finish session and upload to Hub |
 
-Do not use `Ctrl+C` to finish — use `ESC`.
-
-### `display_data`: when to use which
-
-| | `--display_data=true` | `--display_data=false` |
-|--|----------------------|------------------------|
-| **Use when** | Debugging camera angle, first few test episodes, checking the wrist view looks right | **Real recording sessions** (50 episodes), MacBook Air, any time you see FPS warnings |
-| **Pros** | Live Rerun preview of camera + robot state | Less CPU load, fewer dropped frames, smoother teleop |
-| **Cons** | Heavy on laptop CPU; can cause "running slower than 30 Hz" warnings | No live video window — trust the saved dataset or spot-check with a short `true` run first |
-
-**Recommendation:** Run 1–2 episodes with `true` to verify framing/focus, then switch to `false` for the full dataset.
-
-Both commands below use the same Mac-friendly encoding settings (`streaming_encoding`, `encoder_threads`, `vcodec=auto`). If you still get FPS warnings, change `fps` to `20` in **both** `--dataset.fps` and inside `--robot.cameras`.
+Do not use `Ctrl+C` to finish — use `ESC`. Do not press `ESC` mid-episode (saves a short partial episode).
 
 ### Record with preview (`display_data=true`)
 
@@ -138,20 +127,20 @@ lerobot-record \
   --teleop.type=so101_leader \
   --teleop.port=/dev/tty.usbmodem5B421342001 \
   --teleop.id=my_leader_arm \
-  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 20} }" \
+  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30} }" \
   --dataset.repo_id=siddpr/my_vla_task \
   --dataset.single_task="Pick up the object and place it in the bin." \
   --dataset.num_episodes=50 \
   --dataset.episode_time_s=30 \
   --dataset.reset_time_s=10 \
-  --dataset.fps=20 \
+  --dataset.fps=30 \
   --dataset.streaming_encoding=true \
-  --dataset.encoder_threads=2 \
+  --dataset.encoder_threads=4 \
   --dataset.vcodec=auto \
   --display_data=true
 ```
 
-### Record without preview (`display_data=false`) — preferred on MacBook Air
+### Record without preview (`display_data=false`)
 
 ```bash
 lerobot-record \
@@ -161,26 +150,25 @@ lerobot-record \
   --teleop.type=so101_leader \
   --teleop.port=/dev/tty.usbmodem5B421342001 \
   --teleop.id=my_leader_arm \
-  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 20} }" \
+  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30} }" \
   --dataset.repo_id=siddpr/my_vla_task \
   --dataset.single_task="Pick up the object and place it in the bin." \
   --dataset.num_episodes=50 \
   --dataset.episode_time_s=30 \
   --dataset.reset_time_s=10 \
-  --dataset.fps=20 \
+  --dataset.fps=30 \
   --dataset.streaming_encoding=true \
-  --dataset.encoder_threads=2 \
+  --dataset.encoder_threads=4 \
   --dataset.vcodec=auto \
   --display_data=false
 ```
 
 ### Dataset naming and resume
 
-Each **new** `lerobot-record` (without `--resume=true`) auto-stamps the repo id, e.g. `siddpr/my_vla_task` → `siddpr/my_vla_task_20260519_144738`, and saves under:
+Each **new** `lerobot-record` (without `--resume=true`) stamps the repo id:  
+`siddpr/my_vla_task` → `siddpr/my_vla_task_YYYYMMDD_HHMMSS`
 
-`~/.cache/huggingface/lerobot/siddpr/my_vla_task_<timestamp>/`
-
-**Continue the same dataset** (append episodes 3, 4, … toward 50):
+**Continue the same dataset** (replace repo id and root with yours):
 
 ```bash
 lerobot-record \
@@ -190,48 +178,44 @@ lerobot-record \
   --teleop.type=so101_leader \
   --teleop.port=/dev/tty.usbmodem5B421342001 \
   --teleop.id=my_leader_arm \
-  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 20} }" \
-  --dataset.repo_id=siddpr/my_vla_task_20260519_144738 \
-  --dataset.root=/Users/sid/.cache/huggingface/lerobot/siddpr/my_vla_task_20260519_144738 \
+  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30} }" \
+  --dataset.repo_id=siddpr/my_vla_task_YYYYMMDD_HHMMSS \
+  --dataset.root=~/.cache/huggingface/lerobot/siddpr/my_vla_task_YYYYMMDD_HHMMSS \
   --dataset.single_task="Pick up the object and place it in the bin." \
   --dataset.num_episodes=50 \
   --dataset.episode_time_s=30 \
   --dataset.reset_time_s=10 \
-  --dataset.fps=20 \
+  --dataset.fps=30 \
   --dataset.streaming_encoding=true \
-  --dataset.encoder_threads=2 \
+  --dataset.encoder_threads=4 \
   --dataset.vcodec=auto \
   --display_data=false \
   --resume=true
 ```
 
-**Tips:** Use `←` to redo a bad episode before it is saved. Do **not** press `ESC` mid-episode (saves a short partial episode). Use `ESC` only when done with the whole session.
-
-### Delete a bad episode from a dataset
-
-Requires `[dataset]` extra: `uv pip install -e ".[dataset]"`
+### Delete a bad episode
 
 ```bash
+uv pip install -e ".[dataset]"
+
 lerobot-edit-dataset \
-  --repo_id siddpr/my_vla_task_20260519_144738 \
-  --root /Users/sid/.cache/huggingface/lerobot/siddpr/my_vla_task_20260519_144738 \
-  --new_repo_id siddpr/my_vla_task_20260519_144738 \
+  --repo_id=siddpr/my_vla_task_YYYYMMDD_HHMMSS \
+  --root ~/.cache/huggingface/lerobot/siddpr/my_vla_task_YYYYMMDD_HHMMSS \
+  --new_repo_id=siddpr/my_vla_task_YYYYMMDD_HHMMSS \
   --operation.type delete_episodes \
   --operation.episode_indices "[3]" \
   --push_to_hub true
 ```
 
-Replace `[3]` with the episode index to remove.
-
-### Replay a recorded episode (no trained policy)
+### Replay an episode (no policy)
 
 ```bash
 lerobot-replay \
   --robot.type=so101_follower \
   --robot.port=/dev/tty.usbmodem5B421342441 \
   --robot.id=my_follower_arm \
-  --dataset.repo_id=siddpr/my_vla_task_20260519_144738 \
-  --dataset.root=/Users/sid/.cache/huggingface/lerobot/siddpr/my_vla_task_20260519_144738 \
+  --dataset.repo_id=siddpr/my_vla_task_YYYYMMDD_HHMMSS \
+  --dataset.root=~/.cache/huggingface/lerobot/siddpr/my_vla_task_YYYYMMDD_HHMMSS \
   --dataset.episode=0
 ```
 
@@ -239,35 +223,28 @@ lerobot-replay \
 
 ## 6. Train SmolVLA
 
-**Wrist-only + SmolVLA:** `smolvla_base` expects three image slots (`camera1`–`camera3`). Map your wrist stream and mask the unused slots (same flags for train **and** rollout).
-
-```bash
-uv pip install -e ".[smolvla]"
-```
-
-Shared flags (single wrist camera):
+**Wrist-only:** map wrist → `camera1`, mask unused slots (same for train and rollout):
 
 ```text
 --rename_map='{"observation.images.wrist": "observation.images.camera1"}'
 --policy.empty_cameras=2
 ```
 
-Optional: map wrist → `camera3` instead (closer to some HF examples):  
-`'{"observation.images.wrist": "observation.images.camera3"}'`
+```bash
+uv pip install -e ".[smolvla]"
+```
 
-Use `--policy.device=cuda` on a machine with an NVIDIA GPU instead of `mps`.
+Apple Silicon Mac: use `--policy.device=mps` and `--batch_size=1` (see MacBook Air runbook).
 
-### Smoke test (~3 episodes, ~6 min on MacBook Air)
-
-Validates train → checkpoint → rollout wiring; will **not** pick reliably.
+### Smoke test (~500 steps)
 
 ```bash
 lerobot-train \
   --policy.path=lerobot/smolvla_base \
   --policy.push_to_hub=false \
-  --dataset.repo_id=siddpr/my_vla_task_20260519_144738 \
-  --policy.device=mps \
-  --batch_size=1 \
+  --dataset.repo_id=siddpr/my_vla_task_YYYYMMDD_HHMMSS \
+  --policy.device=cuda \
+  --batch_size=8 \
   --steps=500 \
   --save_freq=250 \
   --output_dir=outputs/train/my_smolvla_smoke \
@@ -276,19 +253,15 @@ lerobot-train \
   --policy.empty_cameras=2
 ```
 
-Checkpoint: `outputs/train/my_smolvla_smoke/checkpoints/last/pretrained_model`
-
-### Full fine-tune (target ~50 episodes)
-
-Aim for **~50** clean demos first. At 20 fps × 30 s/episode, use **~10k–20k** steps on Mac (slower) or GPU (faster; ~4 h for 20k on A100 per [SmolVLA docs](https://huggingface.co/docs/lerobot/smolvla)).
+### Full fine-tune (~50 episodes, ~20k steps)
 
 ```bash
 lerobot-train \
   --policy.path=lerobot/smolvla_base \
   --policy.push_to_hub=false \
-  --dataset.repo_id=siddpr/my_vla_task_20260519_144738 \
-  --policy.device=mps \
-  --batch_size=1 \
+  --dataset.repo_id=siddpr/my_vla_task_YYYYMMDD_HHMMSS \
+  --policy.device=cuda \
+  --batch_size=8 \
   --steps=20000 \
   --save_freq=5000 \
   --output_dir=outputs/train/my_smolvla \
@@ -297,13 +270,13 @@ lerobot-train \
   --policy.empty_cameras=2
 ```
 
-To upload the trained policy to Hub, add e.g. `--policy.repo_id=siddpr/my_smolvla` and remove `--policy.push_to_hub=false`.
+Hub upload: add `--policy.repo_id=siddpr/my_smolvla` and drop `--policy.push_to_hub=false`.
 
 ---
 
 ## 7. Run policy on robot (rollout)
 
-Use the **same** `rename_map`, **fps**, task string, and camera settings as training. `empty_cameras` is stored in the checkpoint config; you do not need to pass it again.
+Match **fps**, **rename_map**, and **task** to training.
 
 ### After smoke test
 
@@ -316,12 +289,12 @@ lerobot-rollout \
   --robot.type=so101_follower \
   --robot.port=/dev/tty.usbmodem5B421342441 \
   --robot.id=my_follower_arm \
-  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 20} }" \
+  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30} }" \
   --rename_map='{"observation.images.wrist": "observation.images.camera1"}' \
   --task="Pick up the object and place it in the bin." \
-  --fps=20 \
+  --fps=30 \
   --duration=60 \
-  --device=mps
+  --device=cuda
 ```
 
 ### After full fine-tune
@@ -335,17 +308,13 @@ lerobot-rollout \
   --robot.type=so101_follower \
   --robot.port=/dev/tty.usbmodem5B421342441 \
   --robot.id=my_follower_arm \
-  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 20} }" \
+  --robot.cameras="{ wrist: {type: opencv, index_or_path: 0, width: 640, height: 480, fps: 30} }" \
   --rename_map='{"observation.images.wrist": "observation.images.camera1"}' \
   --task="Pick up the object and place it in the bin." \
-  --fps=20 \
+  --fps=30 \
   --duration=60 \
-  --device=mps
+  --device=cuda
 ```
-
-If RTC is unstable on Mac, try `--inference.type=sync` (drop `inference.rtc.*` flags). Optional safety: `--robot.max_relative_target=10`.
-
-**No training:** There is no official zero-shot SmolVLA pick-place for your SO-101; use teleop or `lerobot-replay` on your dataset.
 
 ---
 
@@ -359,24 +328,18 @@ source .venv/bin/activate
 uv pip install pynput
 ```
 
-After power cycle: on connect, press **Enter** to load calibration (don't type `c`).
-
-Pull upstream later: `git fetch origin main && git rebase origin/main && git push fork dryrun/teleop`
+After power cycle: press **Enter** to load calibration (don't type `c`).
 
 ---
 
-## Fixes we hit
+## Troubleshooting
 
 | Problem | Fix |
 |---------|-----|
 | `feetech-servo-sdk` missing | `uv pip install -e ".[feetech]"` |
-| Camera timeout on index 1 | Wrist is index **0**, not 1 |
-| No keyboard during record | `uv pip install pynput` + Terminal in **Accessibility** |
-| FPS warnings / frame drops | `--display_data=false`, `--dataset.streaming_encoding=true`, plug in power |
-| `repo_id` was `/my_vla_task` | Use `siddpr/my_vla_task` directly |
-| Calibration prompt on startup | Press Enter (motors reset after power off) |
-| Motor voltage / blinking | Match PSU to arm; reseat USB power |
-| `repo_id` missing on train | Add `--policy.push_to_hub=false` or `--policy.repo_id=siddpr/my_smolvla` |
-| Feature mismatch `camera1` vs `wrist` | `--rename_map='{"observation.images.wrist": "observation.images.camera1"}'` + `--policy.empty_cameras=2` |
-| Partial episode after ESC mid-record | Delete with `lerobot-edit-dataset` or use `←` to redo before saving |
-| Many `my_vla_task_*` folders | Each record without `--resume=true` creates a new timestamped dataset |
+| Camera timeout on index 1 | Wrist is index **0** |
+| No keyboard during record | `pynput` + macOS **Accessibility** for Terminal |
+| `repo_id` missing on train | `--policy.push_to_hub=false` or `--policy.repo_id=...` |
+| `camera1` vs `wrist` mismatch | `rename_map` + `policy.empty_cameras=2` |
+| Partial episode after ESC | `lerobot-edit-dataset` or redo with `←` |
+| New timestamp folder each record | Use `--resume=true` on same stamped repo |
