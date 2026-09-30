@@ -2,6 +2,10 @@ This file provides guidance to AI agents when working with code in this reposito
 
 > **User-facing help → [`AGENT_GUIDE.md`](./AGENT_GUIDE.md)** (SO-101 setup, recording, picking a policy, training duration, eval — with copy-pasteable commands).
 
+<!-- rule-packs:start (managed by `sync rules`; change sync.config.json, not this block) -->
+@~/.claude/sync-kit/rules/autodoc.md
+<!-- rule-packs:end -->
+
 ## Project Overview
 
 LeRobot is a PyTorch-based library for real-world robotics, providing datasets, pretrained policies, and tools for training, evaluation, data collection, and robot control. It integrates with Hugging Face Hub for model/dataset sharing.

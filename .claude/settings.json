@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f ~/.claude/sync-kit/autodoc-hook.mjs ] || node \"$CLAUDE_PROJECT_DIR/scripts/hooks/autodoc-hook.mjs\"",
+            "timeout": 150,
+            "statusMessage": "Autodoc check"
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f ~/.claude/sync-kit/autodoc-hook.mjs ] || cat \"$CLAUDE_PROJECT_DIR/scripts/hooks/autodoc-rules.md\""
+          }
+        ]
+      }
+    ]
+  }
+}
